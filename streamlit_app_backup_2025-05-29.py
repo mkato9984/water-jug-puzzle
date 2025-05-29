@@ -4,10 +4,11 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 import networkx as nx
+import matplotlib.font_manager as fm
 from collections import deque
 from math import gcd
 
-# 日本語フォント設定（Streamlit Cloud対応）
+# 日本語フォント設定の強化（Streamlit Cloud対応）
 def setup_matplotlib_japanese():
     """Streamlit Cloud環境での日本語フォント設定"""
     try:
@@ -17,22 +18,26 @@ def setup_matplotlib_japanese():
         return True
     except ImportError:
         try:
-            # システムの日本語フォントを試行
-            import matplotlib.font_manager as fm
-            japanese_fonts = [f for f in fm.fontManager.ttflist 
-                            if 'japan' in f.name.lower() or 'noto' in f.name.lower() 
-                            or 'hiragino' in f.name.lower() or 'yu gothic' in f.name.lower()
-                            or 'meiryo' in f.name.lower()]
-            if japanese_fonts:
-                plt.rcParams['font.family'] = japanese_fonts[0].name
-                plt.rcParams['axes.unicode_minus'] = False
-                return True
-            else:
-                # DejaVu Sansを使用（英語表示）
-                plt.rcParams['font.family'] = ['DejaVu Sans']
-                plt.rcParams['axes.unicode_minus'] = False
-                return False
-        except Exception as e:
+            # 複数の日本語フォントを試行
+            japanese_fonts = ['Noto Sans JP', 'Hiragino Sans', 'Meiryo', 'Yu Gothic', 
+                              'MS Gothic', 'IPAGothic', 'DejaVu Sans']
+            for font in japanese_fonts:
+                try:
+                    plt.rcParams['font.family'] = [font, 'sans-serif']
+                    # テスト文字列を描画して日本語が表示できるか確認
+                    fig, ax = plt.subplots(figsize=(1, 1))
+                    ax.text(0.5, 0.5, '日本語テスト')
+                    plt.close(fig)
+                    st.write(f"日本語フォント '{font}' が使用可能です")
+                    return True
+                except:
+                    continue
+            
+            # DejaVu Sansを使用（英語表示）
+            plt.rcParams['font.family'] = ['DejaVu Sans']
+            plt.rcParams['axes.unicode_minus'] = False
+            return False
+        except:
             plt.rcParams['font.family'] = ['DejaVu Sans']
             plt.rcParams['axes.unicode_minus'] = False
             return False
@@ -75,13 +80,13 @@ def simulate_pour_path(path, a_cap, b_cap):
             if japanese_support:
                 log.append(f"A→Bに{t}L注ぐ → ({a2}L, {b2}L)")
             else:
-                log.append(f"Pour A to B ({t}L) → ({a2}L, {b2}L)")
+                log.append(f"Pour {t}L from A→B → ({a2}L, {b2}L)")
         elif b2 < b1 and a2 > a1:
             t = a2 - a1
             if japanese_support:
                 log.append(f"B→Aに{t}L注ぐ → ({a2}L, {b2}L)")
             else:
-                log.append(f"Pour B to A ({t}L) → ({a2}L, {b2}L)")
+                log.append(f"Pour {t}L from B→A → ({a2}L, {b2}L)")
         else:
             if japanese_support:
                 log.append(f"不明な操作 → ({a2}L, {b2}L)")
@@ -166,9 +171,9 @@ def create_visualization(states, steps, a, b, goal):
         # ステップ説明
         if i == 0:
             if japanese_support:
-                step_text = "初期状態 (0L, 0L)"
+                step_text = f"初期状態 (0L, 0L)"
             else:
-                step_text = "Initial state (0L, 0L)"
+                step_text = f"Initial State (0L, 0L)"
             ax.text(-a-0.5, y_pos, step_text, 
                     ha='right', va='center', fontsize=9)
         elif i <= len(steps):
@@ -233,13 +238,13 @@ def create_visualization(states, steps, a, b, goal):
 def main():
     # タイトル
     if japanese_support:
-        st.title("🥤 水差しパズル - 測定可能チェッカー")
+        st.title("🥤 水差しパズル - Water Jug Puzzle")
         st.markdown("""
         このアプリは、2つの水差しを使って目標の水量を測定できるかどうかを判定し、
         可能な場合は最短手順を表示します。
         """)
     else:
-        st.title("🥤 Water Jug Puzzle - Measurement Checker")
+        st.title("🥤 Water Jug Puzzle")
         st.markdown("""
         This app determines whether a target water volume can be measured using two jugs,
         and displays the shortest procedure if possible.
@@ -247,20 +252,20 @@ def main():
 
     # フォント状況の表示
     if japanese_support:
-        st.success("✅ 日本語フォントが利用可能です。")
+        st.info("ℹ️ 日本語フォントが利用可能です。")
     else:
-        st.warning("⚠️ 日本語フォントが利用できません。英語で表示します。")
+        st.warning("⚠️ 日本語フォントが利用できません。グラフは英語で表示されます。 / Japanese fonts are not available. Graphs will be displayed in English.")
 
     # サイドバーでの入力
     if japanese_support:
-        st.sidebar.header("パラメータ設定")
+        st.sidebar.header("パラメータ設定 / Parameters")
         a = st.sidebar.number_input("A容器の容量 (L)", min_value=1, max_value=20, value=3)
         b = st.sidebar.number_input("B容器の容量 (L)", min_value=1, max_value=20, value=5)
         goal = st.sidebar.number_input("目標の水量 (L)", min_value=1, max_value=max(a, b), value=4)
         
-        st.sidebar.header("表示オプション")
-        show_steps = st.sidebar.checkbox("ステップを表示", value=True)
-        show_graph = st.sidebar.checkbox("グラフで可視化", value=True)
+        st.sidebar.header("表示オプション / Display Options")
+        show_steps = st.sidebar.checkbox("ステップを表示 / Show Steps", value=True)
+        show_graph = st.sidebar.checkbox("グラフで可視化 / Show Graph", value=True)
     else:
         st.sidebar.header("Parameters")
         a = st.sidebar.number_input("Container A Capacity (L)", min_value=1, max_value=20, value=3)
@@ -273,14 +278,14 @@ def main():
 
     # メイン処理
     if japanese_support:
-        st.subheader(f"📊 結果: {goal}Lを測定する")
+        st.subheader(f"📊 結果 / Result: {goal}Lを測定する")
     else:
         st.subheader(f"📊 Result: Measuring {goal}L")
 
     # 数学的チェック
     if is_solvable(a, b, goal):
         if japanese_support:
-            st.success("✅ 測定可能です！")
+            st.success("✅ 測定可能です！ / Measurable!")
             spinner_text = "最短手順を計算中..."
         else:
             st.success("✅ Measurable!")
@@ -292,76 +297,68 @@ def main():
         
         if steps:
             if japanese_support:
-                st.info(f"🔢 最短手順: {len(steps)}ステップ")
+                st.write(f"最短手順 / Shortest path: {len(steps)}ステップ")
             else:
-                st.info(f"🔢 Shortest path: {len(steps)} steps")
+                st.write(f"Shortest path: {len(steps)} steps")
             
             # ステップ表示
             if show_steps:
                 if japanese_support:
-                    st.subheader("📋 解決手順")
+                    st.write("📝 詳細な手順 / Detailed Steps")
                 else:
-                    st.subheader("📋 Solution Steps")
+                    st.write("📝 Detailed Steps")
                 
                 for i, step in enumerate(steps, 1):
-                    st.write(f"**Step {i}**: {step}")
+                    st.write(f"Step {i}: {step}")
             
             # グラフ可視化
             if show_graph:
                 if japanese_support:
-                    st.subheader("📊 可視化")
+                    st.write("📈 視覚的な手順 / Visual Steps")
                 else:
-                    st.subheader("📊 Visualization")
+                    st.write("📈 Visual Steps")
                 
                 states = extract_path_states(steps, a, b)
                 fig = create_visualization(states, steps, a, b, goal)
                 st.pyplot(fig)
-
         else:
             if japanese_support:
-                st.error("❌ 解を見つけることができませんでした。")
+                st.error("❌ エラー: パスが見つかりませんでした。")
             else:
-                st.error("❌ Could not find a solution.")
+                st.error("❌ Error: No path found.")
     else:
         if japanese_support:
             st.error("❌ 測定できません。この組み合わせでは目標量を作ることはできません。")
         else:
-            st.error("❌ Cannot be measured. This combination cannot produce the target volume.")
+            st.error("❌ Measurement not possible. The target volume cannot be achieved with this combination.")
 
     # 説明セクション
-    if japanese_support:
-        with st.expander("🤔 水差しパズルとは？"):
-            st.markdown("""
-            **水差しパズル（Water Jug Problem）**は、容量の異なる2つの容器を使って、
-            特定の水量を測定できるかを考える古典的なパズルです。
+    with st.expander("🤔 水差しパズルとは？ / What is Water Jug Puzzle?"):
+        if japanese_support:
+            st.write("""
+            **水差しパズル**は、容量の異なる2つの容器を使って、目標となる量の水を正確に測るパズルです。
             
-            **基本ルール:**
-            - 各容器は満タンにするか、完全に空にすることができます
-            - 一方の容器から他方の容器に水を移すことができます
-            - 水栓からは無限に水を汲むことができます
+            **ルール:**
+            1. 容器を完全に満たす
+            2. 容器を完全に空にする
+            3. 一方の容器から他方に水を移す（あふれる場合は満タンまで）
             
-            **数学的原理:**
-            目標量 `goal` が測定可能な条件は:
-            `goal ≤ max(a, b)` かつ `goal % gcd(a, b) = 0`
-            
-            ここで `gcd(a, b)` は容器AとBの容量の最大公約数です。
+            **数学的に解が存在する条件:**
+            - 目標量が両方の容器の最大公約数 (GCD) の倍数であること
+            - 目標量が大きい方の容器の容量以下であること
             """)
-    else:
-        with st.expander("🤔 What is Water Jug Puzzle?"):
-            st.markdown("""
-            **Water Jug Problem** is a classic puzzle that asks whether a specific volume
-            can be measured using two containers of different capacities.
+        else:
+            st.write("""
+            **Water Jug Puzzle** is a problem where you need to measure a target amount of water using two containers of different capacities.
             
-            **Basic Rules:**
-            - Each container can be filled completely or emptied completely
-            - Water can be poured from one container to another
-            - Unlimited water is available from a tap
+            **Rules:**
+            1. Fill a container completely
+            2. Empty a container completely
+            3. Pour water from one container to another (until the target container is full)
             
-            **Mathematical Principle:**
-            The target volume `goal` is measurable if:
-            `goal ≤ max(a, b)` and `goal % gcd(a, b) = 0`
-            
-            Where `gcd(a, b)` is the greatest common divisor of container A and B capacities.
+            **Mathematical condition for solvability:**
+            - The target volume must be a multiple of the greatest common divisor (GCD) of the two container capacities
+            - The target volume must be less than or equal to the capacity of the larger container
             """)
 
     # フッター
