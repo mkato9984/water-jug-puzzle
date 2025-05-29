@@ -1,336 +1,149 @@
-# 水差しパズル - 測定可能チェッカー (Streamlit Cloud日本語フォント対応強化版)
+# 水差しパズル - 測定可能チェッカー (Cloudエラー対応緊急修正版)
 import streamlit as st
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
 import networkx as nx
-import matplotlib.font_manager as fm
 from collections import deque
 from math import gcd
 import os
+import sys
+import io
 
-# Streamlit Cloud環境専用の日本語フォント設定
-def setup_matplotlib_japanese_cloud():
-    """Streamlit Cloud環境での日本語フォント設定の最強版"""
-    japanese_support = False
-    
-    # Streamlit Cloud環境の検出
-    is_cloud = any(key in os.environ for key in ['STREAMLIT_SERVER_PORT', 'HOSTNAME', 'STREAMLIT_SHARING_MODE'])
-    
-    if is_cloud:
-        st.info("🌐 Streamlit Cloud環境を検出しました")
-    else:
-        st.info("💻 ローカル環境で実行中です")
-    
-    # Matplotlibバックエンドを明示的に設定
-    import matplotlib
-    matplotlib.use('Agg')
-    
-    # フォントキャッシュを強制再構築
-    try:
-        fm.fontManager.__init__()
-        st.info("🔄 フォントキャッシュを再構築しました")
-    except Exception as e:
-        st.warning(f"⚠️ フォントキャッシュ再構築に失敗: {e}")
-    
-    # 方法1: japanize-matplotlibを使用（最優先）
-    try:
-        import japanize_matplotlib
-        japanize_matplotlib.japanize()
-          # Cloud環境用の追加設定
-        if is_cloud:
-            # Cloud環境で確実に利用可能なフォントを設定
-            cloud_fonts = [
-                'Noto Sans CJK JP',
-                'Noto Sans CJK',
-                'IPAGothic',         # 日本語フォールバック
-                'DejaVu Sans',       # 欧文フォールバック
-                'Liberation Sans',   # 追加フォールバック
-                'sans-serif'
-            ]
-            plt.rcParams['font.family'] = cloud_fonts
-            st.info("🌐 Cloud環境用フォント設定適用: " + ", ".join(cloud_fonts[:3]) + "...")
-        else:
-            # ローカル環境用の設定
-            local_fonts = ['Noto Sans JP', 'BIZ UDGothic', 'Yu Gothic', 'Meiryo', 'MS Gothic', 'sans-serif']
-            plt.rcParams['font.family'] = local_fonts
-        
-        plt.rcParams['axes.unicode_minus'] = False
-        plt.rcParams['font.size'] = 10
-        plt.rcParams['figure.autolayout'] = True
-        
-        # テスト描画で確認
-        fig, ax = plt.subplots(figsize=(1, 1))
-        ax.text(0.5, 0.5, 'テスト', fontsize=12)
-        plt.close(fig)
-        
-        japanese_support = True
-        st.success("✅ japanize-matplotlib による日本語フォントが適用されました")
-        
-    except ImportError:
-        st.warning("⚠️ japanize-matplotlib がインストールされていません - 手動フォント設定を使用します")
-    except Exception as e:
-        st.warning(f"⚠️ japanize-matplotlib の設定に失敗: {e} - 手動フォント設定を使用します")
-    
-    # 方法2: 手動でのフォント設定（フォールバック）
-    if not japanese_support:
-        try:
-            # フォント候補の優先順位（Cloud環境特化）
-            if is_cloud:
-                font_candidates = [
-                    'Noto Sans CJK JP',  # packages.txtでインストール
-                    'Noto Sans JP',      # packages.txtでインストール
-                    'DejaVu Sans'        # フォールバック（英語）
-                ]
-            else:
-                font_candidates = [
-                    'Noto Sans JP',      # 最優先
-                    'BIZ UDGothic',      # Windows標準
-                    'Yu Gothic',         # Windows標準
-                    'Meiryo',           # Windows標準
-                    'MS Gothic',        # Windows標準  
-                    'Noto Sans CJK JP', # 汎用CJK
-                    'Hiragino Sans',    # macOS
-                    'IPAGothic',        # Linux
-                    'DejaVu Sans'       # フォールバック（英語）
-                ]
-            
-            best_font = 'DejaVu Sans'  # デフォルト
-            
-            for font in font_candidates:
-                try:
-                    plt.rcParams['font.family'] = [font, 'sans-serif']
-                    plt.rcParams['axes.unicode_minus'] = False
-                    plt.rcParams['font.size'] = 10
-                    
-                    # 簡単なテスト描画
-                    fig, ax = plt.subplots(figsize=(1, 1))
-                    ax.text(0.5, 0.5, '日本語テスト', fontsize=8)
-                    plt.close(fig)
-                    
-                    if font != 'DejaVu Sans':  # 日本語フォントの場合
-                        japanese_support = True
-                        st.success(f"✅ 日本語フォント '{font}' が利用可能です")
-                    else:
-                        st.info("ℹ️ 英語フォント 'DejaVu Sans' を使用します")
-                    
-                    best_font = font
-                    break
-                    
-                except Exception as font_error:
-                    continue
-            
-            # 最終的なフォント設定
-            plt.rcParams.update({
-                'font.family': [best_font, 'sans-serif'],
-                'axes.unicode_minus': False,
-                'font.size': 10,
-                'figure.autolayout': True
-            })
-            
-        except Exception as e:
-            st.error(f"❌ フォント設定に失敗: {e}")
-            # 安全なフォールバック
-            plt.rcParams.update({
-                'font.family': ['DejaVu Sans'],
-                'axes.unicode_minus': False,
-                'font.size': 10
-            })
-    
-    # 利用可能なフォント情報を表示（デバッグ用）
-    if st.checkbox("🔍 フォント情報を表示（デバッグ用）", value=False):
-        all_fonts = [f.name for f in fm.fontManager.ttflist]
-        japanese_fonts = [f for f in all_fonts if any(jp in f.lower() for jp in ['japan', 'jp', 'noto', 'cjk', 'gothic', 'mincho']) and 'emoji' not in f.lower()]
-        
-        st.write("**現在設定されているフォント:**", plt.rcParams['font.family'])
-        st.write("**利用可能な日本語フォント（抜粋）:**")
-        for font in sorted(set(japanese_fonts))[:20]:  # 上位20個のみ表示
-            st.write(f"- {font}")
-    
-    return japanese_support
-
-# フォント設定を実行
-japanese_support = setup_matplotlib_japanese_cloud()
+# ====== 基本アルゴリズム関数 ======
 
 def is_solvable(a, b, goal):
     """数学的に解が存在するかチェック"""
-    return goal <= max(a, b) and goal % gcd(a, b) == 0
+    if goal > max(a, b):
+        return False
+    return goal % gcd(a, b) == 0
 
-def simulate_pour_path(path, a_cap, b_cap):
-    """パスから操作ログを生成"""
-    log = []
-    for i in range(1, len(path)):
-        a1, b1 = path[i - 1]
-        a2, b2 = path[i]
-        if a2 == a_cap and a1 != a_cap:
-            if japanese_support:
-                log.append(f"Aを満タンにする → ({a2}L, {b2}L)")
-            else:
-                log.append(f"Fill A completely → ({a2}L, {b2}L)")
-        elif b2 == b_cap and b1 != b_cap:
-            if japanese_support:
-                log.append(f"Bを満タンにする → ({a2}L, {b2}L)")
-            else:
-                log.append(f"Fill B completely → ({a2}L, {b2}L)")
-        elif a2 == 0 and a1 != 0:
-            if japanese_support:
-                log.append(f"Aを空にする → ({a2}L, {b2}L)")
-            else:
-                log.append(f"Empty A → ({a2}L, {b2}L)")
-        elif b2 == 0 and b1 != 0:
-            if japanese_support:
-                log.append(f"Bを空にする → ({a2}L, {b2}L)")
-            else:
-                log.append(f"Empty B → ({a2}L, {b2}L)")
-        elif a2 < a1 and b2 > b1:
-            t = b2 - b1
-            if japanese_support:
-                log.append(f"A→Bに{t}L注ぐ → ({a2}L, {b2}L)")
-            else:
-                log.append(f"Pour {t}L from A→B → ({a2}L, {b2}L)")
-        elif b2 < b1 and a2 > a1:
-            t = a2 - a1
-            if japanese_support:
-                log.append(f"B→Aに{t}L注ぐ → ({a2}L, {b2}L)")
-            else:
-                log.append(f"Pour {t}L from B→A → ({a2}L, {b2}L)")
-        else:
-            if japanese_support:
-                log.append(f"不明な操作 → ({a2}L, {b2}L)")
-            else:
-                log.append(f"Unknown operation → ({a2}L, {b2}L)")
-    return log
-
-def solve_water_jug_problem(a_cap, b_cap, goal):
-    """水差しパズルを解く"""
-    G = nx.DiGraph()
-    visited = set()
-    queue = deque()
-    initial = (0, 0)
-    queue.append(initial)
-    visited.add(initial)
-
-    def next_states(a, b):
-        """現在の状態から遷移可能な次の状態を生成"""
-        res = []
-        res.append((a_cap, b))  # Aを満タンにする
-        res.append((a, b_cap))  # Bを満タンにする
-        res.append((0, b))      # Aを空にする
-        res.append((a, 0))      # Bを空にする
-        res.append((a - min(a, b_cap - b), b + min(a, b_cap - b)))  # AからBに注ぐ
-        res.append((a + min(b, a_cap - a), b - min(b, a_cap - a)))  # BからAに注ぐ
-        return res
-
-    # BFSで状態空間を探索
-    while queue:
-        current = queue.popleft()
-        for next_state in next_states(*current):
-            if next_state not in visited:
-                visited.add(next_state)
-                queue.append(next_state)
-            G.add_edge(current, next_state)
+def solve_water_jug_problem(a, b, goal):
+    """BFSで水差しパズルを解く"""
+    if not is_solvable(a, b, goal):
+        return None
     
-    # 目標量を含む状態を探す
-    goal_states = [s for s in visited if goal in s]
-    for g in goal_states:
-        try:
-            path = nx.shortest_path(G, source=initial, target=g)
-            log = simulate_pour_path(path, a_cap, b_cap)
-            return log
-        except nx.NetworkXNoPath:
-            continue
-    return []
+    # BFSの初期設定
+    queue = deque([(0, 0, [])])
+    visited = set([(0, 0)])
+    
+    while queue:
+        state_a, state_b, path = queue.popleft()
+        
+        # ゴール状態のチェック
+        if state_a == goal or state_b == goal:
+            return path
+        
+        # 可能な操作の生成
+        operations = []
+        
+        # 操作1: Aを満たす
+        if state_a < a:
+            if (a, state_b) not in visited:
+                operations.append((a, state_b, f"A容器を満たす → ({a}L, {state_b}L)"))
+                visited.add((a, state_b))
+        
+        # 操作2: Bを満たす
+        if state_b < b:
+            if (state_a, b) not in visited:
+                operations.append((state_a, b, f"B容器を満たす → ({state_a}L, {b}L)"))
+                visited.add((state_a, b))
+        
+        # 操作3: Aを空にする
+        if state_a > 0:
+            if (0, state_b) not in visited:
+                operations.append((0, state_b, f"A容器を空にする → (0L, {state_b}L)"))
+                visited.add((0, state_b))
+        
+        # 操作4: Bを空にする
+        if state_b > 0:
+            if (state_a, 0) not in visited:
+                operations.append((state_a, 0, f"B容器を空にする → ({state_a}L, 0L)"))
+                visited.add((state_a, 0))
+        
+        # 操作5: AからBに移す
+        if state_a > 0 and state_b < b:
+            pour = min(state_a, b - state_b)
+            new_a, new_b = state_a - pour, state_b + pour
+            if (new_a, new_b) not in visited:
+                operations.append((new_a, new_b, f"AからBに{pour}L移す → ({new_a}L, {new_b}L)"))
+                visited.add((new_a, new_b))
+        
+        # 操作6: BからAに移す
+        if state_b > 0 and state_a < a:
+            pour = min(state_b, a - state_a)
+            new_a, new_b = state_a + pour, state_b - pour
+            if (new_a, new_b) not in visited:
+                operations.append((new_a, new_b, f"BからAに{pour}L移す → ({new_a}L, {new_b}L)"))
+                visited.add((new_a, new_b))
+        
+        # 次のステップをキューに追加
+        for next_a, next_b, operation in operations:
+            queue.append((next_a, next_b, path + [operation]))
+    
+    return None
 
 def extract_path_states(steps, a_cap, b_cap):
-    """ステップから各状態を抽出"""
+    """ステップのリストから各状態を抽出"""
     states = [(0, 0)]  # 初期状態
+    
     for step in steps:
-        try:
-            state_str = step.split("(")[1].split(")")[0]
-            parts = state_str.split(",")
-            a_val = int(parts[0].strip().replace("L", ""))
-            b_val = int(parts[1].strip().replace("L", ""))
-            states.append((a_val, b_val))
-        except (IndexError, ValueError):
-            states.append(states[-1])
+        desc_parts = step.split("→")
+        if len(desc_parts) == 2:
+            state_str = desc_parts[1].strip()
+            if state_str.startswith("(") and state_str.endswith(")"):
+                # 括弧内の状態を抽出 (XL, YL)
+                state_str = state_str[1:-1].replace("L", "").strip()
+                a_val, b_val = map(int, state_str.split(","))
+                states.append((a_val, b_val))
+    
     return states
 
-def create_visualization(states, steps, a, b, goal):
-    """グラフ可視化を作成（Streamlit Cloud日本語フォント対応強化版）"""
+# ====== グラフ作成関数（英語ベース、エラー回避モード） ======
+
+def create_simple_visualization(states, steps, a, b, goal):
+    """英語ベースの簡易グラフを作成（フォント問題回避）"""
+    # 最低限の設定でフォント問題を回避
+    plt.rcParams.update({
+        'font.family': 'DejaVu Sans',
+        'font.size': 10,
+        'figure.autolayout': True
+    })
     
-    # グラフ作成前にフォント設定を再確認・適用    try:
-        # japanize-matplotlibが利用可能な場合は再度適用
-        if japanese_support:
-            try:
-                import japanize_matplotlib
-                japanize_matplotlib.japanize()
-            except ImportError:
-                pass
-        
-        # 環境検出
-        is_cloud = any(key in os.environ for key in ['STREAMLIT_SERVER_PORT', 'HOSTNAME', 'STREAMLIT_SHARING_MODE'])
-        
-        # フォント設定を強制的に再適用
-        if is_cloud:
-            plt.rcParams.update({
-                'font.family': ['IPAGothic', 'DejaVu Sans', 'Liberation Sans', 'sans-serif'],
-                'axes.unicode_minus': False,
-                'font.size': 10,
-                'figure.autolayout': True,
-                'figure.facecolor': 'white'
-            })
-        else:
-            plt.rcParams.update({
-                'axes.unicode_minus': False,
-                'font.size': 10,
-                'figure.autolayout': True,
-                'figure.facecolor': 'white'
-            })
-        
-    except Exception as e:
-        # フォント設定エラーの場合、安全な設定で継続
-        plt.rcParams.update({
-            'font.family': ['DejaVu Sans'],
-            'axes.unicode_minus': False,
-            'font.size': 10
-        })
-    
-    # 図の作成
     fig, ax = plt.subplots(figsize=(12, max(8, len(states) * 0.8)))
     
-    # 各ステップに対してグラフを作成
+    # 各ステップのバー描画
     for i, (a_val, b_val) in enumerate(states):
         y_pos = len(states) - i - 1
         
-        # A容器（青色）- 負の値で左側に表示
+        # A容器（青色）
         if a_val > 0:
             ax.barh(y_pos, -a_val, height=0.6, color='#3498db', alpha=0.8)
             ax.text(-a_val/2, y_pos, f"{a_val}L", 
                     ha='center', va='center', color='white', fontweight='bold', fontsize=10)
         
-        # B容器（緑色）- 正の値で右側に表示
+        # B容器（緑色）
         if b_val > 0:
             ax.barh(y_pos, b_val, height=0.6, color='#2ecc71', alpha=0.8)
             ax.text(b_val/2, y_pos, f"{b_val}L", 
                     ha='center', va='center', color='white', fontweight='bold', fontsize=10)
         
-        # ステップ説明
+        # ステップ説明（英語ベース）
+        step_description = ""
         if i == 0:
-            step_text = "初期状態 (0L, 0L)" if japanese_support else "Initial state (0L, 0L)"
-            ax.text(-a-0.5, y_pos, step_text, 
-                    ha='right', va='center', fontsize=9)
+            step_description = "Initial state (0L, 0L)"
         elif i <= len(steps):
-            step_description = steps[i-1].split("→")[0].strip()
-            step_text = f"Step{i}: {step_description}"
-            ax.text(-a-0.5, y_pos, step_text, 
-                    ha='right', va='center', fontsize=9)
+            action = steps[i-1].split("→")[0].strip()
+            step_description = f"Step {i}: {action}"
+                
+        ax.text(-a-0.5, y_pos, step_description, 
+                ha='right', va='center', fontsize=9)
     
-    # 最大容量を示す点線
+    # グラフの設定
     ax.axvline(x=0, color='black', linestyle='-', linewidth=1)
     ax.axvline(x=-a, color='blue', linestyle='--', linewidth=1, alpha=0.7)
     ax.axvline(x=b, color='green', linestyle='--', linewidth=1, alpha=0.7)
     
-    # グラフの装飾
     ax.set_xlim(-a-2, b+2)
     ax.set_ylim(-0.5, len(states) - 0.5)
     
@@ -342,67 +155,41 @@ def create_visualization(states, steps, a, b, goal):
     
     # Y軸を非表示
     ax.set_yticks([])
-    
-    # グリッド
     ax.grid(axis='x', linestyle='-', alpha=0.3)
     
-    # タイトルとラベル（Unicode例外処理付き）
-    try:
-        if japanese_support:
-            title = f"水差しパズル: {goal}Lを測定"
-            xlabel = "水量 (リットル)"
-        else:
-            title = f"Water Jug Puzzle: Measuring {goal}L"
-            xlabel = "Water Volume (Liters)"
-        
-        ax.set_title(title, fontsize=14, fontweight='bold')
-        ax.set_xlabel(xlabel, fontsize=12)
-        
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        # Unicode例外の場合は英語にフォールバック
-        title = f"Water Jug Puzzle: Measuring {goal}L"
-        xlabel = "Water Volume (Liters)"
-        ax.set_title(title, fontsize=14, fontweight='bold')
-        ax.set_xlabel(xlabel, fontsize=12)
+    # タイトル英語表記
+    ax.set_title(f"Water Jug Puzzle: Measuring {goal}L", fontsize=14, fontweight='bold')
+    ax.set_xlabel("Water Volume (Liters)", fontsize=12)
     
-    # 凡例（Unicode例外処理付き）
-    try:
-        if japanese_support:
-            a_label = f"A容器 ({a}L)"
-            b_label = f"B容器 ({b}L)"
-            a_max_label = "A容器最大値"
-            b_max_label = "B容器最大値"
-        else:
-            a_label = f"Container A ({a}L)"
-            b_label = f"Container B ({b}L)"
-            a_max_label = "Container A Max"
-            b_max_label = "Container B Max"
-        
-        a_patch = mpatches.Patch(color='#3498db', label=a_label)
-        b_patch = mpatches.Patch(color='#2ecc71', label=b_label)
-        a_line = plt.Line2D([0], [0], color='blue', linestyle='--', label=a_max_label)
-        b_line = plt.Line2D([0], [0], color='green', linestyle='--', label=b_max_label)
-        ax.legend(handles=[a_patch, b_patch, a_line, b_line], loc='lower right')
-        
-    except (UnicodeEncodeError, UnicodeDecodeError):
-        # Unicode例外の場合は英語にフォールバック
-        a_label = f"Container A ({a}L)"
-        b_label = f"Container B ({b}L)"
-        a_max_label = "Container A Max"
-        b_max_label = "Container B Max"
-        
-        a_patch = mpatches.Patch(color='#3498db', label=a_label)
-        b_patch = mpatches.Patch(color='#2ecc71', label=b_label)
-        a_line = plt.Line2D([0], [0], color='blue', linestyle='--', label=a_max_label)
-        b_line = plt.Line2D([0], [0], color='green', linestyle='--', label=b_max_label)
-        ax.legend(handles=[a_patch, b_patch, a_line, b_line], loc='lower right')
+    # 凡例
+    a_patch = mpatches.Patch(color='#3498db', label=f"Container A ({a}L)")
+    b_patch = mpatches.Patch(color='#2ecc71', label=f"Container B ({b}L)")
+    a_line = plt.Line2D([0], [0], color='blue', linestyle='--', label="Container A Max")
+    b_line = plt.Line2D([0], [0], color='green', linestyle='--', label="Container B Max")
+    ax.legend(handles=[a_patch, b_patch, a_line, b_line], loc='lower right')
     
     return fig
 
-# Streamlitアプリのメイン部分
+# ====== メイン関数 ======
+
 def main():
+    st.set_page_config(
+        page_title="Water Jug Puzzle",
+        page_icon="🚰",
+        layout="wide"
+    )
+    
+    # エラー回避のため言語設定を判断
+    language_setting = st.sidebar.selectbox(
+        "Language / 言語", 
+        ["English", "日本語 (UI Only)"], 
+        index=0
+    )
+    
+    use_japanese_ui = language_setting == "日本語 (UI Only)"
+    
     # タイトル
-    if japanese_support:
+    if use_japanese_ui:
         st.title("🥤 水差しパズル - Water Jug Puzzle")
         st.markdown("""
         このアプリは、2つの水差しを使って目標の水量を測定できるかどうかを判定し、
@@ -414,15 +201,15 @@ def main():
         This app determines whether a target water volume can be measured using two jugs,
         and displays the shortest procedure if possible.
         """)
-
-    # フォント状況の表示
-    if japanese_support:
-        st.info("ℹ️ 日本語フォントが利用可能です。グラフ内の日本語も正しく表示されます。")
-    else:
-        st.warning("⚠️ 日本語フォントが利用できません。グラフは英語で表示されます。 / Japanese fonts are not available. Graphs will be displayed in English.")
+    
+    # グラフの日本語フォント問題の説明
+    st.warning("""
+    **Note:** Due to Streamlit Cloud font limitations, the graph will be displayed in English. / 
+    **注意:** Streamlit Cloud環境のフォント制限により、グラフの表示は英語になります。
+    """)
 
     # サイドバーでの入力
-    if japanese_support:
+    if use_japanese_ui:
         st.sidebar.header("パラメータ設定 / Parameters")
         a = st.sidebar.number_input("A容器の容量 (L)", min_value=1, max_value=20, value=3)
         b = st.sidebar.number_input("B容器の容量 (L)", min_value=1, max_value=20, value=5)
@@ -442,14 +229,14 @@ def main():
         show_graph = st.sidebar.checkbox("Show Graph", value=True)
 
     # メイン処理
-    if japanese_support:
+    if use_japanese_ui:
         st.subheader(f"📊 結果 / Result: {goal}Lを測定する")
     else:
         st.subheader(f"📊 Result: Measuring {goal}L")
 
     # 数学的チェック
     if is_solvable(a, b, goal):
-        if japanese_support:
+        if use_japanese_ui:
             st.success("✅ 測定可能です！ / Measurable!")
             spinner_text = "最短手順を計算中..."
         else:
@@ -461,14 +248,14 @@ def main():
             steps = solve_water_jug_problem(a, b, goal)
         
         if steps:
-            if japanese_support:
+            if use_japanese_ui:
                 st.write(f"最短手順 / Shortest path: {len(steps)}ステップ")
             else:
                 st.write(f"Shortest path: {len(steps)} steps")
             
             # ステップ表示
             if show_steps:
-                if japanese_support:
+                if use_japanese_ui:
                     st.write("📝 詳細な手順 / Detailed Steps")
                 else:
                     st.write("📝 Detailed Steps")
@@ -478,28 +265,33 @@ def main():
             
             # グラフ可視化
             if show_graph:
-                if japanese_support:
+                if use_japanese_ui:
                     st.write("📈 視覚的な手順 / Visual Steps")
                 else:
                     st.write("📈 Visual Steps")
                 
                 states = extract_path_states(steps, a, b)
-                fig = create_visualization(states, steps, a, b, goal)
-                st.pyplot(fig)
+                try:
+                    # 安全なエラー回避版グラフ生成
+                    fig = create_simple_visualization(states, steps, a, b, goal)
+                    st.pyplot(fig)
+                except Exception as e:
+                    st.error(f"Error generating visualization: {e}")
+                    st.info("Try refreshing the page or using smaller container sizes.")
         else:
-            if japanese_support:
+            if use_japanese_ui:
                 st.error("❌ エラー: パスが見つかりませんでした。")
             else:
                 st.error("❌ Error: No path found.")
     else:
-        if japanese_support:
+        if use_japanese_ui:
             st.error("❌ 測定できません。この組み合わせでは目標量を作ることはできません。")
         else:
             st.error("❌ Measurement not possible. The target volume cannot be achieved with this combination.")
 
     # 説明セクション
-    with st.expander("🤔 水差しパズルとは？ / What is Water Jug Puzzle?"):
-        if japanese_support:
+    with st.expander("🤔 What is Water Jug Puzzle? / 水差しパズルとは？"):
+        if use_japanese_ui:
             st.write("""
             **水差しパズル**は、容量の異なる2つの容器を使って、目標となる量の水を正確に測るパズルです。
             
@@ -528,12 +320,8 @@ def main():
 
     # フッター
     st.markdown("---")
-    if japanese_support:
-        st.markdown("💡 **開発者向け**: このアプリはNetworkXとBFSアルゴリズムを使用して最短解を求めています。")
-        st.markdown("🎌 **フォント対応**: Streamlit Cloud環境での日本語フォント表示に対応しています。")
-    else:
-        st.markdown("💡 **For Developers**: This app uses NetworkX and BFS algorithm to find the shortest solution.")
-        st.markdown("🎌 **Font Support**: Optimized for Japanese font display in Streamlit Cloud environment.")
+    st.markdown("💡 **Technical Note:** This app uses BFS (Breadth-First Search) algorithm to find the shortest solution path.")
+    st.markdown("📌 **Font Notice:** Due to font limitations in Streamlit Cloud, visualization is shown in English.")
 
 if __name__ == "__main__":
     main()
