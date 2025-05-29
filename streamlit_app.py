@@ -12,14 +12,13 @@ from math import gcd
 def setup_matplotlib_japanese():
     """Streamlit Cloud環境での日本語フォント設定の強化版"""
     japanese_support = False
-    
-    # 方法1: japanize-matplotlibを使用（最優先）
+      # 方法1: japanize-matplotlibを使用（最優先）
     try:
         import japanize_matplotlib
         japanize_matplotlib.japanize()
         
-        # 日本語フォント設定の強制適用
-        plt.rcParams['font.family'] = ['DejaVu Sans', 'sans-serif']
+        # 明示的に日本語フォントを設定
+        plt.rcParams['font.family'] = ['Noto Sans JP', 'BIZ UDGothic', 'Yu Gothic', 'Meiryo', 'MS Gothic', 'sans-serif']
         plt.rcParams['axes.unicode_minus'] = False
         
         # テスト描画で日本語対応を確認
@@ -28,40 +27,65 @@ def setup_matplotlib_japanese():
         plt.close(fig)
         
         japanese_support = True
-        print("✅ japanize-matplotlib が正常に設定されました")
+        st.success("✅ japanize-matplotlib による日本語フォント (Noto Sans JP) が利用可能です")
         
     except ImportError:
-        print("⚠️ japanize-matplotlib がインストールされていません")
+        st.warning("⚠️ japanize-matplotlib がインストールされていません - フォールバック機能を使用します")
     except Exception as e:
-        print(f"⚠️ japanize-matplotlib の設定に失敗: {e}")
+        st.warning(f"⚠️ japanize-matplotlib の設定に失敗: {e} - フォールバック機能を使用します")
     
     # 方法2: 手動でのフォント設定（フォールバック）
     if not japanese_support:
         try:
-            # Streamlit Cloud で利用可能なフォントを優先順位で試行
+            # Streamlit Cloud環境最適化
+            import matplotlib
+            matplotlib.use('Agg')  # バックエンドを明示的に設定
+            
+            # 利用可能なフォントの動的検査
+            available_fonts = fm.findSystemFonts()
+            best_font = 'DejaVu Sans'  # デフォルト
+              # フォント候補の優先順位
             font_candidates = [
-                'DejaVu Sans',  # Streamlit Cloudで確実に利用可能
-                'Liberation Sans',
-                'Noto Sans',
-                'Arial',
-                'sans-serif'
+                'Noto Sans JP',      # 最優先
+                'BIZ UDGothic',      # Windows標準
+                'Yu Gothic',         # Windows標準
+                'Meiryo',           # Windows標準
+                'MS Gothic',        # Windows標準  
+                'Noto Sans CJK JP', # 汎用CJK
+                'Hiragino Sans',    # macOS
+                'IPAGothic',        # Linux
+                'DejaVu Sans'       # フォールバック（英語）
             ]
             
             for font in font_candidates:
                 try:
-                    plt.rcParams['font.family'] = [font]
+                    plt.rcParams['font.family'] = [font, 'sans-serif']
+                    plt.rcParams['axes.unicode_minus'] = False
+                    
+                    # 簡単なテスト描画
+                    fig, ax = plt.subplots(figsize=(1, 1))
+                    ax.text(0.5, 0.5, '日本語テスト', fontsize=8)
+                    plt.close(fig)
+                    
+                    if font != 'DejaVu Sans':  # 日本語フォントの場合
+                        japanese_support = True
+                        st.success(f"✅ 日本語フォント '{font}' が利用可能です")
+                    else:
+                        st.info("ℹ️ 英語フォント 'DejaVu Sans' を使用します")
+                    
+                    best_font = font
                     break
-                except:
+                    
+                except Exception as font_error:
                     continue
             
-            # 日本語文字が表示できない場合の設定
+            # 最終的なフォント設定
+            plt.rcParams['font.family'] = [best_font, 'sans-serif']
             plt.rcParams['axes.unicode_minus'] = False
-            plt.rcParams['font.size'] = 10
-            
-            print(f"🔧 フォールバックフォント '{font}' を使用します")
             
         except Exception as e:
-            print(f"❌ フォント設定に失敗: {e}")
+            st.error(f"❌ フォント設定に失敗: {e}")
+            # 安全なフォールバック
             plt.rcParams['font.family'] = ['DejaVu Sans']
             plt.rcParams['axes.unicode_minus'] = False
     
@@ -172,28 +196,135 @@ def extract_path_states(steps, a_cap, b_cap):
         except (IndexError, ValueError):
             states.append(states[-1])
     return states
+    """パスから操作ログを生成"""
+    log = []
+    for i in range(1, len(path)):
+        a1, b1 = path[i - 1]
+        a2, b2 = path[i]
+        if a2 == a_cap and a1 != a_cap:
+            if japanese_support:
+                log.append(f"Aを満タンにする → ({a2}L, {b2}L)")
+            else:
+                log.append(f"Fill A completely → ({a2}L, {b2}L)")
+        elif b2 == b_cap and b1 != b_cap:
+            if japanese_support:
+                log.append(f"Bを満タンにする → ({a2}L, {b2}L)")
+            else:
+                log.append(f"Fill B completely → ({a2}L, {b2}L)")
+        elif a2 == 0 and a1 != 0:
+            if japanese_support:
+                log.append(f"Aを空にする → ({a2}L, {b2}L)")
+            else:
+                log.append(f"Empty A → ({a2}L, {b2}L)")
+        elif b2 == 0 and b1 != 0:
+            if japanese_support:
+                log.append(f"Bを空にする → ({a2}L, {b2}L)")
+            else:
+                log.append(f"Empty B → ({a2}L, {b2}L)")
+        elif a2 < a1 and b2 > b1:
+            t = b2 - b1
+            if japanese_support:
+                log.append(f"A→Bに{t}L注ぐ → ({a2}L, {b2}L)")
+            else:
+                log.append(f"Pour {t}L from A→B → ({a2}L, {b2}L)")
+        elif b2 < b1 and a2 > a1:
+            t = a2 - a1
+            if japanese_support:
+                log.append(f"B→Aに{t}L注ぐ → ({a2}L, {b2}L)")
+            else:
+                log.append(f"Pour {t}L from B→A → ({a2}L, {b2}L)")
+        else:
+            if japanese_support:
+                log.append(f"不明な操作 → ({a2}L, {b2}L)")
+            else:
+                log.append(f"Unknown operation → ({a2}L, {b2}L)")
+    return log
+
+def solve_water_jug_problem(a_cap, b_cap, goal):
+    """水差しパズルを解く"""
+    G = nx.DiGraph()
+    visited = set()
+    queue = deque()
+    initial = (0, 0)
+    queue.append(initial)
+    visited.add(initial)
+
+    def next_states(a, b):
+        """現在の状態から遷移可能な次の状態を生成"""
+        res = []
+        res.append((a_cap, b))  # Aを満タンにする
+        res.append((a, b_cap))  # Bを満タンにする
+        res.append((0, b))      # Aを空にする
+        res.append((a, 0))      # Bを空にする
+        res.append((a - min(a, b_cap - b), b + min(a, b_cap - b)))  # AからBに注ぐ
+        res.append((a + min(b, a_cap - a), b - min(b, a_cap - a)))  # BからAに注ぐ
+        return res
+
+    # BFSで状態空間を探索
+    while queue:
+        current = queue.popleft()
+        for next_state in next_states(*current):
+            if next_state not in visited:
+                visited.add(next_state)
+                queue.append(next_state)
+            G.add_edge(current, next_state)
+    
+    # 目標量を含む状態を探す
+    goal_states = [s for s in visited if goal in s]
+    for g in goal_states:
+        try:
+            path = nx.shortest_path(G, source=initial, target=g)
+            log = simulate_pour_path(path, a_cap, b_cap)
+            return log
+        except nx.NetworkXNoPath:
+            continue
+    return []
+
+def extract_path_states(steps, a_cap, b_cap):
+    """ステップから各状態を抽出"""
+    states = [(0, 0)]  # 初期状態
+    for step in steps:
+        try:
+            state_str = step.split("(")[1].split(")")[0]
+            parts = state_str.split(",")
+            a_val = int(parts[0].strip().replace("L", ""))
+            b_val = int(parts[1].strip().replace("L", ""))
+            states.append((a_val, b_val))
+        except (IndexError, ValueError):
+            states.append(states[-1])
+    return states
 
 def create_visualization(states, steps, a, b, goal):
-    """グラフ可視化を作成（日本語フォント対応強化版）"""
+    """グラフ可視化を作成（フォント対応強化版）"""
     
-    # japanize-matplotlibの再設定を確実に行う
+    # フォント設定の確実な適用
     try:
-        import japanize_matplotlib
-        japanize_matplotlib.japanize()
+        # 現在のフォント設定状況を確認し、必要に応じて再設定
+        current_font = plt.rcParams.get('font.family', ['DejaVu Sans'])
         
-        # matplotlibのRCパラメータを強制的に日本語対応にする
-        plt.rcParams['axes.unicode_minus'] = False
-        plt.rcParams['font.size'] = 10
-        
-        # 日本語フォントが利用可能な場合の設定
+        # japanize-matplotlibが利用可能な場合は再設定
         if japanese_support:
-            plt.rcParams['font.family'] = ['DejaVu Sans', 'sans-serif']
+            try:
+                import japanize_matplotlib
+                japanize_matplotlib.japanize()
+            except ImportError:
+                pass
         
-    except ImportError:
-        # japanize-matplotlibが利用できない場合のフォールバック
-        plt.rcParams['font.family'] = ['DejaVu Sans', 'sans-serif']
-        plt.rcParams['axes.unicode_minus'] = False
+        # 基本的なmatplotlib設定を確実に適用
+        plt.rcParams.update({
+            'axes.unicode_minus': False,
+            'font.size': 10,
+            'figure.autolayout': True
+        })
+        
+    except Exception as e:
+        # フォント設定エラーの場合、最小限の設定で継続
+        plt.rcParams.update({
+            'font.family': ['DejaVu Sans'],
+            'axes.unicode_minus': False
+        })
     
+    # 図の作成
     fig, ax = plt.subplots(figsize=(12, max(8, len(states) * 0.8)))
     
     # 各ステップに対してグラフを作成
@@ -215,9 +346,9 @@ def create_visualization(states, steps, a, b, goal):
         # ステップ説明
         if i == 0:
             if japanese_support:
-                step_text = f"初期状態 (0L, 0L)"
+                step_text = "初期状態 (0L, 0L)"
             else:
-                step_text = f"Initial State (0L, 0L)"
+                step_text = "Initial state (0L, 0L)"
             ax.text(-a-0.5, y_pos, step_text, 
                     ha='right', va='center', fontsize=9)
         elif i <= len(steps):
@@ -240,6 +371,66 @@ def create_visualization(states, steps, a, b, goal):
     x_tick_labels = [f"{abs(x)}L" for x in x_ticks]
     ax.set_xticks(x_ticks)
     ax.set_xticklabels(x_tick_labels)
+    
+    # Y軸を非表示
+    ax.set_yticks([])
+    
+    # グリッド
+    ax.grid(axis='x', linestyle='-', alpha=0.3)
+    
+    # タイトルとラベル（フォント対応）
+    try:
+        if japanese_support:
+            title = f"水差しパズル: {goal}Lを測定"
+            xlabel = "水量 (リットル)"
+        else:
+            title = f"Water Jug Puzzle: Measuring {goal}L"
+            xlabel = "Water Volume (Liters)"
+        
+        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.set_xlabel(xlabel, fontsize=12)
+        
+    except UnicodeEncodeError:
+        # 日本語表示エラーの場合は英語にフォールバック
+        title = f"Water Jug Puzzle: Measuring {goal}L"
+        xlabel = "Water Volume (Liters)"
+        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.set_xlabel(xlabel, fontsize=12)
+    
+    # 凡例（フォント対応）
+    try:
+        if japanese_support:
+            a_label = f"A容器 ({a}L)"
+            b_label = f"B容器 ({b}L)"
+            a_max_label = "A容器最大値"
+            b_max_label = "B容器最大値"
+        else:
+            a_label = f"Container A ({a}L)"
+            b_label = f"Container B ({b}L)"
+            a_max_label = "Container A Max"
+            b_max_label = "Container B Max"
+        
+        a_patch = mpatches.Patch(color='#3498db', label=a_label)
+        b_patch = mpatches.Patch(color='#2ecc71', label=b_label)
+        a_line = plt.Line2D([0], [0], color='blue', linestyle='--', label=a_max_label)
+        b_line = plt.Line2D([0], [0], color='green', linestyle='--', label=b_max_label)
+        ax.legend(handles=[a_patch, b_patch, a_line, b_line], loc='lower right')
+        
+    except UnicodeEncodeError:
+        # 日本語表示エラーの場合は英語にフォールバック
+        a_label = f"Container A ({a}L)"
+        b_label = f"Container B ({b}L)"
+        a_max_label = "Container A Max"
+        b_max_label = "Container B Max"
+        
+        a_patch = mpatches.Patch(color='#3498db', label=a_label)
+        b_patch = mpatches.Patch(color='#2ecc71', label=b_label)
+        a_line = plt.Line2D([0], [0], color='blue', linestyle='--', label=a_max_label)
+        b_line = plt.Line2D([0], [0], color='green', linestyle='--', label=b_max_label)
+        ax.legend(handles=[a_patch, b_patch, a_line, b_line], loc='lower right')    
+    return fig
+
+# Streamlitアプリのメイン部分
     
     # Y軸を非表示
     ax.set_yticks([])
