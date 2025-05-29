@@ -37,16 +37,19 @@ def setup_matplotlib_japanese_cloud():
     try:
         import japanize_matplotlib
         japanize_matplotlib.japanize()
-        
-        # Cloud環境用の追加設定
+          # Cloud環境用の追加設定
         if is_cloud:
             # Cloud環境で確実に利用可能なフォントを設定
             cloud_fonts = [
-                'Noto Sans CJK JP',  # packages.txtで追加
-                'Noto Sans JP',      # packages.txtで追加
-                'DejaVu Sans'        # フォールバック
+                'Noto Sans CJK JP',
+                'Noto Sans CJK',
+                'IPAGothic',         # 日本語フォールバック
+                'DejaVu Sans',       # 欧文フォールバック
+                'Liberation Sans',   # 追加フォールバック
+                'sans-serif'
             ]
             plt.rcParams['font.family'] = cloud_fonts
+            st.info("🌐 Cloud環境用フォント設定適用: " + ", ".join(cloud_fonts[:3]) + "...")
         else:
             # ローカル環境用の設定
             local_fonts = ['Noto Sans JP', 'BIZ UDGothic', 'Yu Gothic', 'Meiryo', 'MS Gothic', 'sans-serif']
@@ -255,8 +258,7 @@ def extract_path_states(steps, a_cap, b_cap):
 def create_visualization(states, steps, a, b, goal):
     """グラフ可視化を作成（Streamlit Cloud日本語フォント対応強化版）"""
     
-    # グラフ作成前にフォント設定を再確認・適用
-    try:
+    # グラフ作成前にフォント設定を再確認・適用    try:
         # japanize-matplotlibが利用可能な場合は再度適用
         if japanese_support:
             try:
@@ -265,13 +267,25 @@ def create_visualization(states, steps, a, b, goal):
             except ImportError:
                 pass
         
+        # 環境検出
+        is_cloud = any(key in os.environ for key in ['STREAMLIT_SERVER_PORT', 'HOSTNAME', 'STREAMLIT_SHARING_MODE'])
+        
         # フォント設定を強制的に再適用
-        plt.rcParams.update({
-            'axes.unicode_minus': False,
-            'font.size': 10,
-            'figure.autolayout': True,
-            'figure.facecolor': 'white'
-        })
+        if is_cloud:
+            plt.rcParams.update({
+                'font.family': ['IPAGothic', 'DejaVu Sans', 'Liberation Sans', 'sans-serif'],
+                'axes.unicode_minus': False,
+                'font.size': 10,
+                'figure.autolayout': True,
+                'figure.facecolor': 'white'
+            })
+        else:
+            plt.rcParams.update({
+                'axes.unicode_minus': False,
+                'font.size': 10,
+                'figure.autolayout': True,
+                'figure.facecolor': 'white'
+            })
         
     except Exception as e:
         # フォント設定エラーの場合、安全な設定で継続

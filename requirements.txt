@@ -5,6 +5,13 @@ numpy>=1.24.0
 japanize-matplotlib>=1.1.3
 fonttools>=4.42.0
 setuptools>=65.0.0
+cycler>=0.10.0
+kiwisolver>=1.3.1
+pillow>=8.0.0
+pyparsing>=2.3.1
+python-dateutil>=2.7.0
 
 # Streamlit Cloud用の日本語フォント対応強化
 matplotlib-base>=3.7.0
+# デバッグ支援
+pydeck>=0.6.0

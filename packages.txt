@@ -3,4 +3,8 @@ fonts-noto-cjk-extra
 fonts-dejavu-core
 fontconfig
 fonts-liberation
-ttf-dejavu-core
+# ttf-dejavu-core はDebian系ディストリビューションによって名前が異なります
+fonts-dejavu
+fonts-noto
+fonts-noto-cjk
+fonts-ipafont-gothic
