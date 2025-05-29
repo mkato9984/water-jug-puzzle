@@ -10,37 +10,62 @@ from math import gcd
 
 # 日本語フォント設定の強化（Streamlit Cloud対応）
 def setup_matplotlib_japanese():
-    """Streamlit Cloud環境での日本語フォント設定"""
+    """Streamlit Cloud環境での日本語フォント設定の強化版"""
+    japanese_support = False
+    
+    # 方法1: japanize-matplotlibを使用（最優先）
     try:
-        # japanize-matplotlibを最初に試行
         import japanize_matplotlib
         japanize_matplotlib.japanize()
-        return True
+        
+        # 日本語フォント設定の強制適用
+        plt.rcParams['font.family'] = ['DejaVu Sans', 'sans-serif']
+        plt.rcParams['axes.unicode_minus'] = False
+        
+        # テスト描画で日本語対応を確認
+        fig, ax = plt.subplots(figsize=(1, 1))
+        ax.text(0.5, 0.5, 'テスト', fontsize=12)
+        plt.close(fig)
+        
+        japanese_support = True
+        print("✅ japanize-matplotlib が正常に設定されました")
+        
     except ImportError:
+        print("⚠️ japanize-matplotlib がインストールされていません")
+    except Exception as e:
+        print(f"⚠️ japanize-matplotlib の設定に失敗: {e}")
+    
+    # 方法2: 手動でのフォント設定（フォールバック）
+    if not japanese_support:
         try:
-            # 複数の日本語フォントを試行
-            japanese_fonts = ['Noto Sans JP', 'Hiragino Sans', 'Meiryo', 'Yu Gothic', 
-                              'MS Gothic', 'IPAGothic', 'DejaVu Sans']
-            for font in japanese_fonts:
+            # Streamlit Cloud で利用可能なフォントを優先順位で試行
+            font_candidates = [
+                'DejaVu Sans',  # Streamlit Cloudで確実に利用可能
+                'Liberation Sans',
+                'Noto Sans',
+                'Arial',
+                'sans-serif'
+            ]
+            
+            for font in font_candidates:
                 try:
-                    plt.rcParams['font.family'] = [font, 'sans-serif']
-                    # テスト文字列を描画して日本語が表示できるか確認
-                    fig, ax = plt.subplots(figsize=(1, 1))
-                    ax.text(0.5, 0.5, '日本語テスト')
-                    plt.close(fig)
-                    st.write(f"日本語フォント '{font}' が使用可能です")
-                    return True
+                    plt.rcParams['font.family'] = [font]
+                    break
                 except:
                     continue
             
-            # DejaVu Sansを使用（英語表示）
+            # 日本語文字が表示できない場合の設定
+            plt.rcParams['axes.unicode_minus'] = False
+            plt.rcParams['font.size'] = 10
+            
+            print(f"🔧 フォールバックフォント '{font}' を使用します")
+            
+        except Exception as e:
+            print(f"❌ フォント設定に失敗: {e}")
             plt.rcParams['font.family'] = ['DejaVu Sans']
             plt.rcParams['axes.unicode_minus'] = False
-            return False
-        except:
-            plt.rcParams['font.family'] = ['DejaVu Sans']
-            plt.rcParams['axes.unicode_minus'] = False
-            return False
+    
+    return japanese_support
 
 # フォント設定を実行
 japanese_support = setup_matplotlib_japanese()
@@ -149,7 +174,26 @@ def extract_path_states(steps, a_cap, b_cap):
     return states
 
 def create_visualization(states, steps, a, b, goal):
-    """グラフ可視化を作成"""
+    """グラフ可視化を作成（日本語フォント対応強化版）"""
+    
+    # japanize-matplotlibの再設定を確実に行う
+    try:
+        import japanize_matplotlib
+        japanize_matplotlib.japanize()
+        
+        # matplotlibのRCパラメータを強制的に日本語対応にする
+        plt.rcParams['axes.unicode_minus'] = False
+        plt.rcParams['font.size'] = 10
+        
+        # 日本語フォントが利用可能な場合の設定
+        if japanese_support:
+            plt.rcParams['font.family'] = ['DejaVu Sans', 'sans-serif']
+        
+    except ImportError:
+        # japanize-matplotlibが利用できない場合のフォールバック
+        plt.rcParams['font.family'] = ['DejaVu Sans', 'sans-serif']
+        plt.rcParams['axes.unicode_minus'] = False
+    
     fig, ax = plt.subplots(figsize=(12, max(8, len(states) * 0.8)))
     
     # 各ステップに対してグラフを作成
