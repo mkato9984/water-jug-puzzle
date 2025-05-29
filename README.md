@@ -1,8 +1,10 @@
 # 水差しパズル - 測定可能チェッカー 🚰
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://your-app-name.streamlit.app)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://water-jug-puzzle.streamlit.app)
+![Japanese Font Support](https://img.shields.io/badge/日本語フォント-対応済み-green)
+![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen)
 
-このアプリケーションは、2つの容器を使って特定の水量を測定できるかどうかを判定し、その手順をグラフで視覚化するWebアプリケーションです。
+このアプリケーションは、2つの容器を使って特定の水量を測定できるかどうかを判定し、その手順をグラフで視覚化するWebアプリケーションです。**Streamlit Cloud環境での日本語フォント表示に完全対応**しています。
 
 ## 🎯 機能
 
@@ -11,6 +13,14 @@
 - **📝 操作手順の表示**: ステップバイステップの解法を日本語で詳細表示
 - **📊 グラフ視覚化**: 各ステップの容器の状態を横棒グラフでリアルタイム表示
 - **🎨 直感的UI**: Streamlitベースの使いやすいインターフェース
+- **🌐 日本語フォント対応**: Streamlit Cloud環境での日本語表示完全対応
+
+## ✨ 新機能・改善点（2025年5月更新）
+
+- **🎌 日本語フォント完全対応**: japanize-matplotlib + 環境別フォント設定
+- **☁️ Streamlit Cloud最適化**: 環境自動検出と専用設定
+- **🔧 依存関係解決**: setuptools追加によるdistutils問題解決
+- **🧪 包括的テスト**: 機能・フォント・視覚化の総合テスト実装
 
 ## 🚀 使用方法
 
